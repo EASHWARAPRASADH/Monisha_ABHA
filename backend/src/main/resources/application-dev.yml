@@ -1,0 +1,10 @@
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+logging:
+  level:
+    com.project.ivr: DEBUG
+    org.springframework.security: INFO
+    org.hibernate.SQL: INFO

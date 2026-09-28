@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: hospital-ivr-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: hospital_ivr_db
+      MYSQL_USER: hospital_user
+      MYSQL_PASSWORD: hospital_password
+      MYSQL_ROOT_PASSWORD: root_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "hospital_user", "-phospital_password"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - hospital-net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: hospital-ivr-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: hospital_ivr_db
+      DB_USER: hospital_user
+      DB_PASSWORD: hospital_password
+      PORT: 8088
+      IVR_BASE_URL: http://backend:8088
+      DEMO_MODE: "true"
+      SMS_PROVIDER: "mock"
+      JWT_SECRET: "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"
+    ports:
+      - "8088:8088"
+    networks:
+      - hospital-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: hospital-ivr-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+    networks:
+      - hospital-net
+
+volumes:
+  mysql_data:
+
+networks:
+  hospital-net:
+    driver: bridge

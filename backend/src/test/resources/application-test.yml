@@ -1,0 +1,35 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:hospital_ivr_test_db;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=MySQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create
+    database-platform: org.hibernate.dialect.H2Dialect
+    show-sql: false
+  flyway:
+    enabled: false
+
+app:
+  demo-mode: true
+  sms-provider: mock
+  jwt:
+    secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+    expiration-ms: 86400000
+  twilio:
+    account-sid: ACtest_mock_account
+    auth-token: test_mock_auth_token
+    phone-number: +18005550199
+  ivr:
+    base-url: http://localhost:8080
+  otp:
+    expiration-minutes: 5
+    max-attempts: 3
+    fixed-mock-otp: 123456
+  opd:
+    start-time: "08:00"
+    end-time: "16:00"
+    slot-duration-minutes: 15
+    default-daily-capacity: 50

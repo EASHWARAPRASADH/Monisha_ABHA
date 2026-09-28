@@ -1,0 +1,10 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+logging:
+  level:
+    com.project.ivr: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN

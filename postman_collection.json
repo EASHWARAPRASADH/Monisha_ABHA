@@ -1,0 +1,343 @@
+{
+  "info": {
+    "name": "Hospital IVR Token Booking System - ABDM Integrated",
+    "_postman_id": "c1f7b093-455b-4171-8bc6-94723c3b0001",
+    "description": "Comprehensive Postman API collection for IVR-based OPD Token Booking System integrated with Mock ABHA for Government Hospitals",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8088",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Authentication",
+      "item": [
+        {
+          "name": "Login - Super Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.data && jsonData.data.token) {",
+                  "    pm.collectionVariables.set('authToken', jsonData.data.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"superadmin\",\n  \"password\": \"superadmin123\"\n}"
+            },
+            "url": {"raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"]}
+          }
+        },
+        {
+          "name": "Login - Hospital Staff",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"staff_ggh\",\n  \"password\": \"staff123\"\n}"
+            },
+            "url": {"raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"]}
+          }
+        },
+        {
+          "name": "Get Current User Profile (/me)",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}"}],
+            "url": {"raw": "{{baseUrl}}/api/auth/me", "host": ["{{baseUrl}}"], "path": ["api", "auth", "me"]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Hospital HMIS & Departments",
+      "item": [
+        {
+          "name": "Get All Hospitals",
+          "request": {
+            "method": "GET",
+            "url": {"raw": "{{baseUrl}}/api/hospitals", "host": ["{{baseUrl}}"], "path": ["api", "hospitals"]}
+          }
+        },
+        {
+          "name": "Get Hospital Departments & Quota",
+          "request": {
+            "method": "GET",
+            "url": {"raw": "{{baseUrl}}/api/hospitals/1/departments", "host": ["{{baseUrl}}"], "path": ["api", "hospitals", "1", "departments"]}
+          }
+        },
+        {
+          "name": "Check Department Availability",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/hospitals/1/availability?departmentId=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "hospitals", "1", "availability"],
+              "query": [{"key": "departmentId", "value": "1"}]
+            }
+          }
+        },
+        {
+          "name": "Get All Clinical Departments",
+          "request": {
+            "method": "GET",
+            "url": {"raw": "{{baseUrl}}/api/departments", "host": ["{{baseUrl}}"], "path": ["api", "departments"]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Mock ABHA Service",
+      "item": [
+        {
+          "name": "Verify Mobile Number",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobileNumber\": \"9876543210\"\n}"
+            },
+            "url": {"raw": "{{baseUrl}}/api/mock/abha/verify-mobile", "host": ["{{baseUrl}}"], "path": ["api", "mock", "abha", "verify-mobile"]}
+          }
+        },
+        {
+          "name": "Verify ABHA ID",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"abhaId\": \"1234-5678-9012\"\n}"
+            },
+            "url": {"raw": "{{baseUrl}}/api/mock/abha/verify-id", "host": ["{{baseUrl}}"], "path": ["api", "mock", "abha", "verify-id"]}
+          }
+        },
+        {
+          "name": "Send Mock OTP",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobileNumber\": \"9876543210\"\n}"
+            },
+            "url": {"raw": "{{baseUrl}}/api/mock/abha/send-otp", "host": ["{{baseUrl}}"], "path": ["api", "mock", "abha", "send-otp"]}
+          }
+        },
+        {
+          "name": "Verify Mock OTP (123456)",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobileNumber\": \"9876543210\",\n  \"otpCode\": \"123456\"\n}"
+            },
+            "url": {"raw": "{{baseUrl}}/api/mock/abha/verify-otp", "host": ["{{baseUrl}}"], "path": ["api", "mock", "abha", "verify-otp"]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. OPD Tokens",
+      "item": [
+        {
+          "name": "Book OPD Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{authToken}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patientMobile\": \"9876543219\",\n  \"hospitalId\": 1,\n  \"departmentId\": 1,\n  \"channel\": \"WEB\"\n}"
+            },
+            "url": {"raw": "{{baseUrl}}/api/tokens", "host": ["{{baseUrl}}"], "path": ["api", "tokens"]}
+          }
+        },
+        {
+          "name": "Get Today's Queue",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}"}],
+            "url": {"raw": "{{baseUrl}}/api/tokens", "host": ["{{baseUrl}}"], "path": ["api", "tokens"]}
+          }
+        },
+        {
+          "name": "Update Token Status (CALLED)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{authToken}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"CALLED\"\n}"
+            },
+            "url": {"raw": "{{baseUrl}}/api/tokens/1/status", "host": ["{{baseUrl}}"], "path": ["api", "tokens", "1", "status"]}
+          }
+        },
+        {
+          "name": "Cancel Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{authToken}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Patient requested cancellation via portal\"\n}"
+            },
+            "url": {"raw": "{{baseUrl}}/api/tokens/1/cancel", "host": ["{{baseUrl}}"], "path": ["api", "tokens", "1", "cancel"]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. IVR Voice Telephony (Twilio Webhooks)",
+      "item": [
+        {
+          "name": "1. Incoming Call",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/ivr/incoming?CallSid=CALL_TEST_101&From=9876543210",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ivr", "incoming"],
+              "query": [
+                {"key": "CallSid", "value": "CALL_TEST_101"},
+                {"key": "From", "value": "9876543210"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "2. Language Selection (Tamil = 2)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/ivr/language?CallSid=CALL_TEST_101&Digits=2&From=9876543210",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ivr", "language"],
+              "query": [
+                {"key": "CallSid", "value": "CALL_TEST_101"},
+                {"key": "Digits", "value": "2"},
+                {"key": "From", "value": "9876543210"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "3. Menu Selection (Book Token = 1)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/ivr/verify?CallSid=CALL_TEST_101&Digits=1&From=9876543210",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ivr", "verify"],
+              "query": [
+                {"key": "CallSid", "value": "CALL_TEST_101"},
+                {"key": "Digits", "value": "1"},
+                {"key": "From", "value": "9876543210"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "4. Hospital Selection (1 = GGH)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/ivr/hospital?CallSid=CALL_TEST_101&Digits=1&From=9876543210",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ivr", "hospital"],
+              "query": [
+                {"key": "CallSid", "value": "CALL_TEST_101"},
+                {"key": "Digits", "value": "1"},
+                {"key": "From", "value": "9876543210"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "5. Department Selection (1 = General Medicine)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/ivr/department?CallSid=CALL_TEST_101&Digits=1&From=9876543210",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ivr", "department"],
+              "query": [
+                {"key": "CallSid", "value": "CALL_TEST_101"},
+                {"key": "Digits", "value": "1"},
+                {"key": "From", "value": "9876543210"}
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Administration & Reporting",
+      "item": [
+        {
+          "name": "Get Dashboard Statistics",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}"}],
+            "url": {"raw": "{{baseUrl}}/api/admin/dashboard/stats", "host": ["{{baseUrl}}"], "path": ["api", "admin", "dashboard", "stats"]}
+          }
+        },
+        {
+          "name": "Get IVR Call Logs",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}"}],
+            "url": {"raw": "{{baseUrl}}/api/admin/ivr-calls", "host": ["{{baseUrl}}"], "path": ["api", "admin", "ivr-calls"]}
+          }
+        },
+        {
+          "name": "Get SMS Dispatch Logs",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}"}],
+            "url": {"raw": "{{baseUrl}}/api/admin/sms-logs", "host": ["{{baseUrl}}"], "path": ["api", "admin", "sms-logs"]}
+          }
+        },
+        {
+          "name": "Get Security Audit Logs",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}"}],
+            "url": {"raw": "{{baseUrl}}/api/admin/audit-logs", "host": ["{{baseUrl}}"], "path": ["api", "admin", "audit-logs"]}
+          }
+        }
+      ]
+    }
+  ]
+}
