@@ -383,14 +383,22 @@ npm install
 npm run dev                                     # Starts Vite React dev server on http://localhost:5173
 ```
 
-### Docker Compose Setup
+### Docker Compose Multi-Platform Setup (Zero Prerequisites)
+
+Anyone on your team can run the entire platform with zero manual installation of Java, Maven, MySQL, or Node.js:
+
 ```bash
-# Starts MySQL, Backend, and Frontend containers simultaneously
-docker-compose up --build
+# On macOS / Linux:
+./docker-run.sh
+
+# On Windows:
+docker-run.bat
+# (or run: docker compose up --build -d)
 ```
-- Web Portal: `http://localhost:3000` (or `http://localhost:5173`)
-- REST API / Swagger UI: `http://localhost:8088/swagger-ui.html`
-- OpenAPI Specification JSON: `http://localhost:8088/v3/api-docs`
+- **Web Portal:** `http://localhost:3000` (or `http://localhost:5173`)
+- **REST API / Swagger UI:** `http://localhost:8088/swagger-ui.html`
+- **OpenAPI Specification JSON:** `http://localhost:8088/v3/api-docs`
+- **Stop Containers:** `docker compose down`
 
 ---
 
@@ -406,11 +414,15 @@ The Spring Boot backend exposes interactive OpenAPI 3.0 documentation:
 
 | Deliverable | Location | Description |
 | :--- | :--- | :--- |
+| **Project Report (DOCX)** | `PROJECT_DOCUMENTATION_REPORT.docx` | Academic project report with all 7 high-res screenshots embedded |
+| **Project Documentation** | `PROJECT_DOCUMENTATION.md` | Complete markdown report with visual screenshots and viva guide |
 | **Spring Boot Backend** | `backend/` | Complete Java 21, Spring Boot 3.3.4 enterprise backend |
 | **React Frontend** | `frontend/` | React 18, TypeScript, Vite, Tailwind CSS portal |
 | **Flyway Schema & Seed** | `backend/src/main/resources/db/migration/` | V1 Schema (19 tables) + V2 Seed Data |
 | **IVR Phone Simulator** | `frontend/src/pages/IvrSimulatorPage.tsx` | Real-time virtual button phone with voice synthesis |
 | **Unit & Integration Tests** | `backend/src/test/` | 14 JUnit 5, Mockito & MockMvc tests (100% passing) |
 | **Docker Compose** | `docker-compose.yml` | Multi-container orchestration (MySQL + Backend + Frontend) |
+| **One-Click Runners** | `docker-run.sh` / `docker-run.bat` | Cross-platform runners for macOS, Linux, and Windows |
 | **Postman API Collection** | `postman_collection.json` | 20+ documented requests with auth chaining |
 | **Environment Template** | `.env.example` | Production & local environment configuration variables |
+

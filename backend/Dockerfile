@@ -5,7 +5,7 @@ FROM maven:3.9.6-eclipse-temurin-21-alpine AS builder
 
 WORKDIR /build
 COPY pom.xml .
-RUN mvn dependency:go-offline -B
+RUN mvn dependency:resolve -B
 
 COPY src ./src
 RUN mvn clean package -DskipTests
@@ -18,7 +18,7 @@ FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-COPY --from=builder /build/target/hospital-ivr-backend-1.0.0.jar app.jar
+COPY --from=builder /build/target/*.jar app.jar
 RUN chown -R appuser:appgroup /app
 
 USER appuser
