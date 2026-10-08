@@ -31,6 +31,10 @@ public class TokenBookingRequest {
 
     private LocalDate bookingDate;
 
+    private String triageSeverity;
+
+    private String chiefComplaint;
+
     @Builder.Default
     private RequestChannel channel = RequestChannel.WEB;
 }

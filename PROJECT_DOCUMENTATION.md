@@ -230,13 +230,110 @@ FOR UPDATE;
 
 ---
 
+## On-Premise Local AI Model Architecture & Clinical Triage Engine
+
+### 1. Healthcare Data Sovereignty & ABDM Compliance (Zero Cloud Leakage)
+In public healthcare and government hospital environments, patient complaints, symptom disclosures, and clinical triage interactions constitute **Protected Health Information (PHI)**. Under the **Ayushman Bharat Digital Mission (ABDM)** Information Security & Data Privacy Guidelines and India's **Digital Personal Data Protection Act (DPDPA), 2023**, transmitting unencrypted citizen medical complaints to foreign third-party cloud APIs (such as OpenAI, Anthropic, or external proprietary endpoints) presents significant regulatory and legal liabilities.
+
+To ensure complete sovereign compliance:
+* **Zero External Cloud Calls**: 100% of LLM inference, clinical NLP parsing, and queue prediction calculations execute entirely on hospital-controlled on-premise hardware.
+* **Air-Gapped Intranet Operation**: The triage engine operates with full functionality even in rural hospitals with unstable or non-existent internet uplinks.
+* **Immutable Audit Trail**: All triage transactions are persisted to an on-premise MySQL audit table (`symptom_triage_logs`) recording caller ID hash, presented complaints, extracted urgency, and latency metrics without external telemetry.
+
+```mermaid
+flowchart TD
+    CallerVoice["Citizen Voice Input / Speech Recognition\n(IVR Telephony Channel - Option 5)"]
+    WebPortalInput["Web Portal Registrar / Resident Doctor Input\n(Token Queue Desk / Simulator)"]
+
+    CallerVoice --> AITriageRouter["Hybrid AI Triage Engine Router\n(com.project.ivr.service.ai)"]
+    WebPortalInput --> AITriageRouter
+
+    subgraph DualEngine ["On-Premise Dual-Engine Architecture"]
+        direction TB
+        OllamaEngine["Primary Engine: Ollama Local LLM\n(http://localhost:11434 - llama3.2)\nStructured JSON Schema Enforcement\nTimeout Circuit Breaker (3500ms)"]
+        ClinicalOntology["Secondary Engine: Embedded Clinical NLP Fallback\nMultilingual Ontology (EN / TA / HI)\nDeterministic Rule Matrix & Red-Flag Alerts\nLatency < 10ms"]
+    end
+
+    AITriageRouter -->|Attempt Primary Inference| OllamaEngine
+    OllamaEngine -.->|On Timeout / Unpulled Model| ClinicalOntology
+    AITriageRouter -->|Immediate Deterministic Fallback| ClinicalOntology
+
+    subgraph TriageDecisions ["Clinical Action & Telephony Dispatch"]
+        EmergencyCheck{"Emergency Red-Flag\nDetected?"}
+        AmbulanceDispatch["Trigger Emergency Prompt & Dial 108\n(Ambulance Service Transfer)"]
+        DepartmentRoute["Recommend Target Specialty\n(Cardio, Ortho, Paed, Derm, ENT, Med)"]
+        QueuePredictor["Dynamic Queue Velocity Engine\n(Calculates Waiting Time & Slot Offset)"]
+        DoctorBrief["Resident Doctor Pre-Consultation Brief\n(Draft ABDM FHIR Clinical Note Generator)"]
+    end
+
+    OllamaEngine --> EmergencyCheck
+    ClinicalOntology --> EmergencyCheck
+
+    EmergencyCheck -->|Yes: CRITICAL| AmbulanceDispatch
+    EmergencyCheck -->|No: ROUTINE / PRIORITY| DepartmentRoute
+
+    DepartmentRoute --> QueuePredictor
+    DepartmentRoute --> DoctorBrief
+    QueuePredictor --> DBLog[("symptom_triage_logs\n& tokens.triage_severity")]
+```
+
+### 2. Dual-Engine Architecture (Ollama LLM + Embedded Clinical NLP Fallback)
+The system adopts an enterprise-grade **Adapter Pattern** with high availability (`AITriageService`):
+1. **Primary Engine (`OllamaLocalAIService`)**:
+   - Communicates with a local Ollama daemon (`http://localhost:11434`) running lightweight open-weight models (e.g. `llama3.2:1b` or `llama3.2:3b`).
+   - Uses strict system prompts requesting structured JSON responses containing: `recommendedDepartment`, `urgencyLevel` (`EMERGENCY`, `PRIORITY`, `ROUTINE`), `isEmergencyRedFlag`, `confidenceScore`, and `clinicalRationale`.
+   - Incorporates a 3.5-second circuit breaker timeout to guarantee telephony SLA constraints (callers must never experience silent pauses).
+2. **Secondary Engine (`ClinicalRuleLocalAIService`)**:
+   - Zero-dependency, thread-safe embedded clinical ontology loaded directly into JVM memory.
+   - Activates automatically in `< 10 milliseconds` if Ollama is unreachable, restarting, or the model is still being pulled.
+   - Eliminates single points of failure across rural public healthcare nodes.
+
+### 3. Multilingual Clinical Ontology & Lexicon Mapping
+The embedded clinical NLP classifier parses medical terminology across three official languages (English, Tamil, and Hindi) mapping directly to hospital departments:
+
+| Clinical Department | English Symptom Keywords | தமிழ் (Tamil) Lexicon | हिंदी (Hindi) Lexicon | Triage Urgency |
+| :--- | :--- | :--- | :--- | :--- |
+| **Cardiology** | chest pain, left arm radiating pain, angina, sweating, palpitations, breathlessness | மார்பு வலி, இடது கை வலி, மூச்சுத்திணறல், படபடப்பு | सीने में दर्द, बाएं हाथ में दर्द, सांस लेने में तकलीफ | `EMERGENCY` / `PRIORITY` |
+| **Paediatrics** | infant fever, baby vomiting, child crying, dehydration, measles | குழந்தை காய்ச்சல், வாந்தி, பாப்பா அழுகை | बच्चे को बुखार, शिशु उल्टी, बच्चा रो रहा है | `PRIORITY` |
+| **Orthopaedics** | knee joint swelling, fracture, walking pain, bone injury, backache | முழங்கால் வலி, எலும்பு முறிவு, மூட்டு வீக்கம், முதுகு வலி | घुटने में दर्द, हड्डी टूटना, जोड़ों में सूजन | `ROUTINE` |
+| **Dermatology** | itchy skin rash, hives, eczema, fungal spots, psoriasis | தோல் அரிப்பு, தடிப்பு, அரிக்கும் படை | त्वचा में खुजली, चकत्ते, दाद, फुंसी | `ROUTINE` |
+| **ENT** | ear pain, ear discharge, hearing loss, sore throat, nasal blockage | காது வலி, சீழ் வடிதல், தொண்டை வலி, மூக்கடைப்பு | कान में दर्द, कान बहना, गले में खराश | `ROUTINE` |
+| **General Medicine** | viral fever, body chills, continuous cough, weakness, malaria | காய்ச்சல், இருமல், சளி, உடல் நடுக்கம் | बुखार, खांसी, जुकाम, कमजोरी, बदन दर्द | `ROUTINE` |
+
+### 4. Dynamic Queue Velocity & Arrival Rate Mathematics
+Rather than relying on static 15-minute slot intervals, the `AIQueuePredictorService` calculates dynamic waiting times based on real-time counter velocity:
+
+$$\text{Estimated Wait (minutes)} = \left[ \sum_{i=1}^{N_{\text{waiting}}} \left( D_{\text{base}} \times W_{\text{dept}} \right) \right] \times (1 - B_{\text{no-show}}) + T_{\text{buffer}}$$
+
+Where:
+* $N_{\text{waiting}}$: Number of patients currently waiting ahead in the department queue.
+* $D_{\text{base}}$: Baseline consultation time per patient (12.0 minutes).
+* $W_{\text{dept}}$: Departmental clinical complexity weight:
+  * Cardiology ($W = 1.35$) — intensive ECG review, cardiac auscultation, history examination.
+  * Orthopaedics ($W = 1.25$) — physical mobility tests, X-ray evaluations, cast inspection.
+  * Paediatrics ($W = 1.20$) — infant weight checks, pediatric examinations, parental counseling.
+  * General Medicine ($W = 1.00$) — routine clinical review and prescription writing.
+  * ENT ($W = 0.90$) & Dermatology ($W = 0.80$) — focused procedural evaluations.
+* $B_{\text{no-show}}$: Historical empirical no-show buffer discount (10% or $0.10$).
+* $T_{\text{buffer}}$: Resident doctor buffer (5 minutes).
+
+### 5. Resident Doctor Pre-Consultation Briefing & ABDM FHIR Note Generator
+When hospital nursing staff or doctors view today's queue (`/tokens`), every AI-triaged patient features a distinct triage severity badge (`EMERGENCY`, `PRIORITY`, or `ROUTINE`). Clicking the **AI Brief** action opens the resident doctor clinical assistant modal featuring:
+* **Immediate Urgency Level & Model Confidence Score**.
+* **Recorded Chief Complaint & Clinical Rationale**.
+* **Four Recommended Resident Doctor Screening Questions** tailored specifically to the diagnosed specialty (e.g. assessing trauma history for Orthopaedics, assessing radiating discomfort for Cardiology).
+* **Pre-Generated Draft ABDM FHIR Clinical Note** formatted for instant single-click copying into the hospital's Electronic Medical Record (EMR) system.
+
+---
+
 ## Database Architecture & Migration Schema
 
-The persistence layer consists of **19 normalized relational tables** managed through **Flyway**:
+The persistence layer consists of **20 normalized relational tables** managed through **Flyway**:
 
 ```
-V1__init_schema.sql  ──> Generates tables, constraints, foreign keys, and indexes
-V2__seed_data.sql    ──> Seeds hospital facilities, departments, roles, mock citizens, and admin users
+V1__init_schema.sql         ──> Generates tables, constraints, foreign keys, and indexes
+V2__seed_data.sql           ──> Seeds hospital facilities, departments, roles, mock citizens, and admin users
+V3__add_ai_triage_tables.sql ──> Adds symptom triage audit logging and triage columns on tokens
 ```
 
 ### Core Entities:
@@ -245,11 +342,12 @@ V2__seed_data.sql    ──> Seeds hospital facilities, departments, roles, mock
 3. `departments`: Clinical specialties (General Medicine, Cardiology, Orthopaedics, Paediatrics, etc.).
 4. `hospital_departments`: Operating schedules (`08:00 - 16:00`), daily token limits (e.g. 50-200), and slot durations (15 mins).
 5. `patients`: Citizen database with mobile number, demographic data, and linked mock ABHA ID.
-6. `tokens`: OPD token records with token number, booking channel (`IVR` vs `WEB`), estimated time, and status (`BOOKED`, `CALLED`, `COMPLETED`, `CANCELLED`, `NO_SHOW`).
-7. `token_counters`: Concurrency control counter per hospital, department, and date.
-8. `ivr_calls`: Detailed telephony audit logs recording Call SID, caller hash, language preference, and terminal state.
-9. `sms_logs`: Outbound SMS records with recipient phone, message text, and delivery status.
-10. `audit_logs`: Administrative actions tracked with IP address and timestamps.
+6. `tokens`: OPD token records with token number, booking channel (`IVR` vs `WEB`), estimated time, status (`BOOKED`, `CALLED`, etc.), and AI fields (`triage_severity`, `chief_complaint`).
+7. `symptom_triage_logs`: Immutable clinical audit records recording telephony Call SID, symptoms string, detected department, urgency, model engine used, confidence score, and latency.
+8. `token_counters`: Concurrency control counter per hospital, department, and date.
+9. `ivr_calls`: Detailed telephony audit logs recording Call SID, caller hash, language preference, and terminal state.
+10. `sms_logs`: Outbound SMS records with recipient phone, message text, and delivery status.
+11. `audit_logs`: Administrative actions tracked with IP address and timestamps.
 
 ---
 
@@ -260,6 +358,9 @@ V2__seed_data.sql    ──> Seeds hospital facilities, departments, roles, mock
 | **Digital Divide Mitigation** | Complete token booking via feature phone call with zero smartphone requirement. | Virtual Phone Simulator (`/ivr-simulator`) |
 | **Multilingual Accessibility** | Voice prompts and confirmation available in English, Tamil, and Hindi. | Language Step (DTMF 1, 2, 3) |
 | **ABHA / ABDM Integration** | Patient recognized via mobile or mock ABHA; displays official PVC ABHA card. | Patients Page (`/patients`) & `AbhaCard.tsx` |
+| **On-Premise Local AI Triage** | Sovereign symptom triage with zero cloud leakage, Ollama + NLP fallback, and emergency 108 dialer. | Simulator AI Panel & `/api/ai/triage` |
+| **Clinical Decision Support** | Resident doctor screening checklist and draft ABDM FHIR clinical notes on queue desk. | Token Queue (`/tokens`) & AI Brief Modal |
+| **Queue Velocity Modeling** | Dynamic wait-time predictions based on departmental weights and arrival rates. | AI Queue Predictor Service |
 | **Concurrency & Integrity** | Pessimistic locking prevents duplicate token numbers during simultaneous calls. | `MockHospitalIntegrationService.java` |
 | **Operational Feasibility** | Real-time queue desk, waiting hall digital signage with audible chimes, printable slips. | Token Queue (`/tokens`) & TV Mode |
 | **Institutional UI/UX** | High-credibility public health design language compliant with MoHFW/NHA standards. | Web Application (`http://localhost:5173`) |

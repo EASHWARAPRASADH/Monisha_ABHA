@@ -18,10 +18,15 @@ import {
   Check,
   Copy,
   ChevronRight,
-  Info
+  Info,
+  Bot,
+  Stethoscope,
+  Zap,
+  AlertTriangle,
+  HeartPulse,
 } from 'lucide-react';
-import { ivrSimulatorApi, adminApi } from '../services/api';
-import { SmsLog } from '../types';
+import { ivrSimulatorApi, adminApi, aiApi } from '../services/api';
+import { SmsLog, SymptomTriageResponse } from '../types';
 import { telephonyAudio } from '../utils/audio';
 
 export const IvrSimulatorPage: React.FC = () => {
@@ -40,6 +45,12 @@ export const IvrSimulatorPage: React.FC = () => {
   const [inputBuffer, setInputBuffer] = useState<string>('');
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const [copiedSmsId, setCopiedSmsId] = useState<number | null>(null);
+
+  // Local AI Clinical Triage State
+  const [aiSymptomText, setAiSymptomText] = useState('Severe crushing chest pain radiating to left arm');
+  const [aiTriageLoading, setAiTriageLoading] = useState(false);
+  const [aiTriageResult, setAiTriageResult] = useState<SymptomTriageResponse | null>(null);
+  const [aiLanguage, setAiLanguage] = useState<'en' | 'ta' | 'hi'>('en');
 
   const timerRef = useRef<any>(null);
 
@@ -223,6 +234,44 @@ export const IvrSimulatorPage: React.FC = () => {
     navigator.clipboard.writeText(text);
     setCopiedSmsId(id);
     setTimeout(() => setCopiedSmsId(null), 2000);
+  };
+
+  const handleRunAiTriage = async (customText?: string, langOverride?: 'en' | 'ta' | 'hi') => {
+    const text = customText || aiSymptomText;
+    const lang = langOverride || aiLanguage;
+    if (!text.trim()) return;
+    setAiTriageLoading(true);
+    try {
+      const res = await aiApi.triage({
+        symptoms: text,
+        language: lang,
+        patientMobile: callerNumber,
+      });
+      setAiTriageResult(res);
+      if (speechEnabled) {
+        speakText(res.patientFriendlyAdvice, lang);
+      }
+    } catch (e: any) {
+      console.error('AI Triage error:', e);
+    } finally {
+      setAiTriageLoading(false);
+    }
+  };
+
+  const handleConnectWithAiDept = async (deptName: string, deptId: number, isEmergency: boolean) => {
+    if (callActive) {
+      endCall();
+    }
+    // Start inbound call
+    await startCall();
+    // Simulate automated language routing + jumping to AI symptom triage
+    const langDigit = aiLanguage === 'ta' ? '2' : (aiLanguage === 'hi' ? '3' : '1');
+    setTimeout(() => {
+      handleKeyPress(langDigit);
+      setTimeout(() => {
+        handleKeyPress('5'); // Option 5: AI Symptom Triage in Main Menu
+      }, 1500);
+    }, 1200);
   };
 
   const keypad = [
@@ -458,6 +507,319 @@ export const IvrSimulatorPage: React.FC = () => {
 
         {/* Live SMS & Telephony Inspector Panels (Cols 7) */}
         <div className="lg:col-span-7 space-y-5">
+          {/* Local AI Clinical Symptom Assistant & Triage Engine Card */}
+          <div className="bg-gradient-to-br from-white to-teal-50/40 p-5 rounded-2xl border border-teal-200/80 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3 pb-3 border-b border-teal-100">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-teal-600 text-white flex items-center justify-center shadow-xs">
+                  <Bot className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center space-x-2">
+                    <span>Local AI Clinical Symptom Assistant</span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-200">
+                      On-Premise LLM
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Sovereign edge triage for illiterate/rural callers • Zero cloud transmission
+                  </p>
+                </div>
+              </div>
+
+              {/* Language Selection Tabs */}
+              <div className="flex items-center space-x-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+                {(['en', 'ta', 'hi'] as const).map((l) => (
+                  <button
+                    key={l}
+                    type="button"
+                    onClick={() => {
+                      setAiLanguage(l);
+                      if (l === 'ta') setAiSymptomText('தீவிர நெஞ்சு வலி மற்றும் மூச்சு திணறல்');
+                      else if (l === 'hi') setAiSymptomText('सीने में तेज दर्द और सांस लेने में भारीपन');
+                      else setAiSymptomText('Severe crushing chest pain radiating to left arm');
+                    }}
+                    className={`px-2.5 py-1 rounded-md font-semibold transition ${
+                      aiLanguage === l ? 'bg-white text-teal-800 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {l === 'en' ? 'English' : (l === 'ta' ? 'தமிழ்' : 'हिंदी')}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Quick Symptom Presets */}
+            <div className="mb-3">
+              <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center">
+                <Sparkles className="h-3 w-3 text-teal-600 mr-1" />
+                Select Clinical Complaint Preset:
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-xs">
+                {aiLanguage === 'en' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const txt = 'Severe crushing chest pain radiating to left arm';
+                        setAiSymptomText(txt);
+                        handleRunAiTriage(txt, 'en');
+                      }}
+                      className="p-2 rounded-lg border border-rose-200 bg-rose-50/70 hover:bg-rose-100/70 text-left text-rose-900 transition"
+                    >
+                      <p className="font-bold text-[11px] text-rose-700">🚨 Chest Pain</p>
+                      <p className="text-[10px] text-slate-500 truncate">Radiating to arm</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const txt = 'Knee joint swelling and severe difficulty walking';
+                        setAiSymptomText(txt);
+                        handleRunAiTriage(txt, 'en');
+                      }}
+                      className="p-2 rounded-lg border border-amber-200 bg-amber-50/70 hover:bg-amber-100/70 text-left text-amber-900 transition"
+                    >
+                      <p className="font-bold text-[11px] text-amber-700">🦴 Knee Swelling</p>
+                      <p className="text-[10px] text-slate-500 truncate">Joint mobility pain</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const txt = 'Infant baby continuous fever and vomiting';
+                        setAiSymptomText(txt);
+                        handleRunAiTriage(txt, 'en');
+                      }}
+                      className="p-2 rounded-lg border border-blue-200 bg-blue-50/70 hover:bg-blue-100/70 text-left text-blue-900 transition"
+                    >
+                      <p className="font-bold text-[11px] text-blue-700">👶 Infant Fever</p>
+                      <p className="text-[10px] text-slate-500 truncate">Vomiting & crying</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const txt = 'Mild dry skin rash on arm with itching';
+                        setAiSymptomText(txt);
+                        handleRunAiTriage(txt, 'en');
+                      }}
+                      className="p-2 rounded-lg border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100/70 text-left text-emerald-900 transition"
+                    >
+                      <p className="font-bold text-[11px] text-emerald-700">🌿 Skin Rash</p>
+                      <p className="text-[10px] text-slate-500 truncate">Itching & spots</p>
+                    </button>
+                  </>
+                )}
+
+                {aiLanguage === 'ta' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const txt = 'தீவிர நெஞ்சு வலி மற்றும் மூச்சு திணறல்';
+                        setAiSymptomText(txt);
+                        handleRunAiTriage(txt, 'ta');
+                      }}
+                      className="p-2 rounded-lg border border-rose-200 bg-rose-50/70 hover:bg-rose-100/70 text-left text-rose-900 transition"
+                    >
+                      <p className="font-bold text-[11px] text-rose-700">🚨 நெஞ்சு வலி</p>
+                      <p className="text-[10px] text-slate-500 truncate">மூச்சு திணறல்</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const txt = 'முழங்கால் மூட்டு வலி மற்றும் வீக்கம்';
+                        setAiSymptomText(txt);
+                        handleRunAiTriage(txt, 'ta');
+                      }}
+                      className="p-2 rounded-lg border border-amber-200 bg-amber-50/70 hover:bg-amber-100/70 text-left text-amber-900 transition"
+                    >
+                      <p className="font-bold text-[11px] text-amber-700">🦴 மூட்டு வலி</p>
+                      <p className="text-[10px] text-slate-500 truncate">எலும்பு சிகிச்சை</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const txt = 'குழந்தைக்கு அதிக காய்ச்சல் மற்றும் வாந்தி';
+                        setAiSymptomText(txt);
+                        handleRunAiTriage(txt, 'ta');
+                      }}
+                      className="p-2 rounded-lg border border-blue-200 bg-blue-50/70 hover:bg-blue-100/70 text-left text-blue-900 transition"
+                    >
+                      <p className="font-bold text-[11px] text-blue-700">👶 குழந்தை நலம்</p>
+                      <p className="text-[10px] text-slate-500 truncate">காய்ச்சல் & வாந்தி</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const txt = 'தோல் அரிப்பு மற்றும் தடிப்பு';
+                        setAiSymptomText(txt);
+                        handleRunAiTriage(txt, 'ta');
+                      }}
+                      className="p-2 rounded-lg border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100/70 text-left text-emerald-900 transition"
+                    >
+                      <p className="font-bold text-[11px] text-emerald-700">🌿 தோல் அரிப்பு</p>
+                      <p className="text-[10px] text-slate-500 truncate">தோல் நோய் பிரிவு</p>
+                    </button>
+                  </>
+                )}
+
+                {aiLanguage === 'hi' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const txt = 'सीने में तेज दर्द और सांस लेने में भारीपन';
+                        setAiSymptomText(txt);
+                        handleRunAiTriage(txt, 'hi');
+                      }}
+                      className="p-2 rounded-lg border border-rose-200 bg-rose-50/70 hover:bg-rose-100/70 text-left text-rose-900 transition"
+                    >
+                      <p className="font-bold text-[11px] text-rose-700">🚨 सीने में दर्द</p>
+                      <p className="text-[10px] text-slate-500 truncate">दिल का दौरा लक्षण</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const txt = 'घुटने और जोड़ों में दर्द सूजन';
+                        setAiSymptomText(txt);
+                        handleRunAiTriage(txt, 'hi');
+                      }}
+                      className="p-2 rounded-lg border border-amber-200 bg-amber-50/70 hover:bg-amber-100/70 text-left text-amber-900 transition"
+                    >
+                      <p className="font-bold text-[11px] text-amber-700">🦴 जोड़ों में दर्द</p>
+                      <p className="text-[10px] text-slate-500 truncate">ऑर्थोपेडिक्स</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const txt = 'शिशु को तेज बुखार और उल्टी';
+                        setAiSymptomText(txt);
+                        handleRunAiTriage(txt, 'hi');
+                      }}
+                      className="p-2 rounded-lg border border-blue-200 bg-blue-50/70 hover:bg-blue-100/70 text-left text-blue-900 transition"
+                    >
+                      <p className="font-bold text-[11px] text-blue-700">👶 बाल रोग</p>
+                      <p className="text-[10px] text-slate-500 truncate">तेज बुखार & उल्टी</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const txt = 'त्वचा पर खुजली और लाल दाने';
+                        setAiSymptomText(txt);
+                        handleRunAiTriage(txt, 'hi');
+                      }}
+                      className="p-2 rounded-lg border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100/70 text-left text-emerald-900 transition"
+                    >
+                      <p className="font-bold text-[11px] text-emerald-700">🌿 त्वचा रोग</p>
+                      <p className="text-[10px] text-slate-500 truncate">खुजली और दाने</p>
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Custom Input & Triage Trigger */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={aiSymptomText}
+                onChange={(e) => setAiSymptomText(e.target.value)}
+                placeholder="Type or speak symptoms in English, தமிழ், or हिंदी..."
+                className="flex-1 px-3 py-2 text-xs rounded-xl border border-teal-200 bg-white focus:outline-hidden focus:ring-1 focus:ring-teal-500 font-sans shadow-2xs"
+              />
+              <button
+                type="button"
+                disabled={aiTriageLoading || !aiSymptomText.trim()}
+                onClick={() => handleRunAiTriage()}
+                className="px-4 py-2 text-xs font-bold rounded-xl bg-teal-600 hover:bg-teal-700 text-white shadow-xs transition flex items-center space-x-1.5 disabled:opacity-50 shrink-0"
+              >
+                {aiTriageLoading ? (
+                  <span>Analyzing...</span>
+                ) : (
+                  <>
+                    <Zap className="h-3.5 w-3.5 text-amber-300" />
+                    <span>Run AI Triage</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* AI Triage Result Presentation */}
+            {aiTriageResult && (
+              <div className="mt-3 p-3.5 rounded-xl border bg-white border-teal-200/90 shadow-2xs space-y-2.5 animate-fadeIn">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Recommended:</span>
+                    <span className="text-sm font-black text-teal-900 bg-teal-50 px-2.5 py-0.5 rounded-lg border border-teal-200">
+                      {aiTriageResult.recommendedDepartmentName} Department
+                    </span>
+                  </div>
+
+                  <div className="flex items-center space-x-1.5 text-[10px]">
+                    <span className={`px-2 py-0.5 rounded font-black tracking-wide ${
+                      aiTriageResult.severityLevel === 'EMERGENCY'
+                        ? 'bg-rose-600 text-white animate-pulse'
+                        : aiTriageResult.severityLevel === 'PRIORITY'
+                        ? 'bg-amber-100 text-amber-900 border border-amber-300 font-bold'
+                        : 'bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold'
+                    }`}>
+                      {aiTriageResult.severityLevel}
+                    </span>
+
+                    <span className="px-2 py-0.5 rounded font-mono bg-slate-100 text-slate-700 border border-slate-200">
+                      {aiTriageResult.aiEngine}
+                    </span>
+
+                    <span className="px-1.5 py-0.5 rounded font-mono bg-slate-50 text-slate-500 border border-slate-200">
+                      {aiTriageResult.latencyMs}ms
+                    </span>
+                  </div>
+                </div>
+
+                {/* Emergency Critical Banner */}
+                {aiTriageResult.isEmergencyRedFlag && (
+                  <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start space-x-2">
+                    <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold">Urgent Medical Alert Detected</p>
+                      <p className="text-[11px] text-rose-700 leading-tight">
+                        {aiTriageResult.emergencyInstructions || 'Please proceed immediately to Hospital Casualty or call 108.'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Clinical Rationale & Voice Readback */}
+                <div className="text-xs text-slate-700 bg-slate-50/70 p-2.5 rounded-lg border border-slate-100 space-y-1">
+                  <p className="text-[11px] text-slate-600">
+                    <span className="font-semibold text-slate-800">Clinical Rationale: </span>
+                    {aiTriageResult.clinicalRationale}
+                  </p>
+                  <p className="text-[11px] text-teal-800 font-medium">
+                    <span className="font-semibold">Voice Guidance: </span>
+                    {aiTriageResult.patientFriendlyAdvice}
+                  </p>
+                </div>
+
+                {/* Action button: Auto-Dial & Apply to IVR */}
+                <div className="pt-1 flex items-center justify-between">
+                  <span className="text-[10px] text-slate-400">Confidence: {(aiTriageResult.confidenceScore * 100).toFixed(0)}%</span>
+                  <button
+                    type="button"
+                    onClick={() => handleConnectWithAiDept(
+                      aiTriageResult.recommendedDepartmentName,
+                      aiTriageResult.recommendedDepartmentId,
+                      aiTriageResult.isEmergencyRedFlag
+                    )}
+                    className="inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-900 text-white hover:bg-slate-800 shadow-2xs transition space-x-1"
+                  >
+                    <Phone className="h-3 w-3 text-emerald-400 mr-1" />
+                    <span>Dial Hotline & Route via AI (Key 5)</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Quick Scenario Fill Buttons */}
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
             <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2 flex items-center">

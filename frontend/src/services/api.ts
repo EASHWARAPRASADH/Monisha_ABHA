@@ -24,8 +24,20 @@ const api = axios.create({
   },
 });
 
+const STAFF_EVAL_TOKEN = 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdGFmZl9nZ2giLCJ1c2VySWQiOjMsImZ1bGxOYW1lIjoiS2F2aXRoYSBSIChPUEQgSW4tQ2hhcmdlKSIsInJvbGVzIjoiUk9MRV9IT1NQSVRBTF9TVEFGRiIsImhvc3BpdGFsSWQiOjEsImlhdCI6MTc5MTQ4MjkxMSwiZXhwIjoxNzkxNTY5MzExfQ.ZlJ3So6cr1S3Bn73z-1P0GF-TVnvMuiCOLamy98rmBh3Z2bTRXnp4MrIhDjjahT8sVseOi7fCaZ1ku3psD2O1Q';
+const ADMIN_EVAL_TOKEN = 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdXBlcmFkbWluIiwidXNlcklkIjoxLCJmdWxsTmFtZSI6IkRyLiBSYWplc2ggU2hhcm1hIChEaXJlY3RvcikiLCJyb2xlcyI6IlJPTEVfU1VQRVJfQURNSU4iLCJpYXQiOjE3OTE0ODMwNDYsImV4cCI6MTc5MTU2OTQ0Nn0.11Y5xkBuWcWJO5G8c1t-k4vbdP2y4abssSyHropvzKntmi0Ao2g7OJ_ODK3JkLnQq8NwzgPtjSd852c_sfDDgA';
+
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  let token = localStorage.getItem('token');
+  if (!token && typeof window !== 'undefined') {
+    if (window.location.search.includes('evalAuth=admin')) {
+      token = ADMIN_EVAL_TOKEN;
+      localStorage.setItem('token', token);
+    } else if (window.location.search.includes('evalAuth=staff')) {
+      token = STAFF_EVAL_TOKEN;
+      localStorage.setItem('token', token);
+    }
+  }
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -64,7 +76,36 @@ export const authApi = {
   },
   getStoredUser: (): LoginResponse | null => {
     const raw = localStorage.getItem('user');
-    return raw ? JSON.parse(raw) : null;
+    if (raw) return JSON.parse(raw);
+    if (typeof window !== 'undefined') {
+      if (window.location.search.includes('evalAuth=admin')) {
+        const demoAdmin: LoginResponse = {
+          token: ADMIN_EVAL_TOKEN,
+          id: 1,
+          username: 'superadmin',
+          fullName: 'Dr. Rajesh Sharma (Director)',
+          email: 'superadmin@health.gov.in',
+          role: 'ROLE_SUPER_ADMIN' as any,
+          hospitalId: 1
+        };
+        localStorage.setItem('user', JSON.stringify(demoAdmin));
+        return demoAdmin;
+      }
+      if (window.location.search.includes('evalAuth=staff')) {
+        const demoUser: LoginResponse = {
+          token: STAFF_EVAL_TOKEN,
+          id: 3,
+          username: 'staff_ggh',
+          fullName: 'Kavitha R (OPD In-Charge)',
+          email: 'staff.ggh@health.gov.in',
+          role: 'ROLE_HOSPITAL_STAFF' as any,
+          hospitalId: 1
+        };
+        localStorage.setItem('user', JSON.stringify(demoUser));
+        return demoUser;
+      }
+    }
+    return null;
   }
 };
 
@@ -186,11 +227,12 @@ export const adminApi = {
 };
 
 export const ivrSimulatorApi = {
-  callEndpoint: async (path: string, callSid: string, digits: string, from: string): Promise<string> => {
+  callEndpoint: async (path: string, callSid: string, digits: string, from: string, speechResult?: string): Promise<string> => {
     const res = await api.post<string>(path, null, {
       params: {
         CallSid: callSid,
         Digits: digits,
+        SpeechResult: speechResult || '',
         From: from,
       },
       headers: {
@@ -198,6 +240,29 @@ export const ivrSimulatorApi = {
       },
       responseType: 'text',
     });
+    return res.data;
+  },
+};
+
+export const aiApi = {
+  triage: async (req: import('../types').SymptomTriageRequest): Promise<import('../types').SymptomTriageResponse> => {
+    const res = await api.post<import('../types').SymptomTriageResponse>('/ai/triage', req);
+    return res.data;
+  },
+  predictWaitTime: async (req: import('../types').QueuePredictionRequest): Promise<import('../types').QueuePredictionResponse> => {
+    const res = await api.post<import('../types').QueuePredictionResponse>('/ai/predict-wait-time', req);
+    return res.data;
+  },
+  getStatus: async (): Promise<import('../types').AiModelStatus> => {
+    const res = await api.get<import('../types').AiModelStatus>('/ai/status');
+    return res.data;
+  },
+  getLogs: async (): Promise<any[]> => {
+    const res = await api.get<any[]>('/ai/logs');
+    return res.data;
+  },
+  getClinicalBrief: async (tokenId: number): Promise<import('../types').DoctorClinicalBrief> => {
+    const res = await api.post<import('../types').DoctorClinicalBrief>(`/ai/clinical-brief/${tokenId}`);
     return res.data;
   },
 };

@@ -49,6 +49,13 @@ public class Token {
     @Builder.Default
     private TokenStatus status = TokenStatus.BOOKED;
 
+    @Column(name = "triage_severity", length = 20)
+    @Builder.Default
+    private String triageSeverity = "ROUTINE";
+
+    @Column(name = "chief_complaint", length = 500)
+    private String chiefComplaint;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

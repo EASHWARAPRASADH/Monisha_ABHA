@@ -100,6 +100,8 @@ export interface Token {
   bookingTime: string;
   estimatedTime: string;
   status: TokenStatus;
+  triageSeverity?: string;
+  chiefComplaint?: string;
   smsSent: boolean;
   channel?: string;
   createdAt: string;
@@ -189,3 +191,73 @@ export interface ApiResponse<T> {
   data: T;
   timestamp: string;
 }
+
+export interface SymptomTriageRequest {
+  symptoms: string;
+  language?: string;
+  patientMobile?: string;
+  callSid?: string;
+  hospitalId?: number;
+}
+
+export interface SymptomTriageResponse {
+  recommendedDepartmentId: number;
+  recommendedDepartmentName: string;
+  recommendedDepartmentCode: string;
+  severityLevel: 'ROUTINE' | 'PRIORITY' | 'EMERGENCY' | string;
+  confidenceScore: number;
+  clinicalRationale: string;
+  patientFriendlyAdvice: string;
+  isEmergencyRedFlag: boolean;
+  emergencyInstructions?: string;
+  aiEngine: string;
+  latencyMs: number;
+}
+
+export interface QueuePredictionRequest {
+  hospitalId: number;
+  departmentId: number;
+  tokenSequenceNumber?: number;
+  tokenNumber?: string;
+}
+
+export interface QueuePredictionResponse {
+  estimatedWindowStart: string;
+  estimatedWindowEnd: string;
+  estimatedWaitMinutes: number;
+  patientsAheadInQueue: number;
+  departmentAvgMinutesPerPatient: number;
+  crowdStatus: 'NORMAL' | 'MODERATE' | 'SURGE' | string;
+  confidenceScore: number;
+  predictionAlgorithm: string;
+}
+
+export interface AiModelStatus {
+  isOllamaConnected: boolean;
+  ollamaBaseUrl: string;
+  configuredModel: string;
+  activeEngine: string;
+  operationalMode: string;
+  availableLocalModels: string[];
+  totalTriageRequestsLogged: number;
+  emergencyCasesIdentified: number;
+  averageLatencyMs: number;
+  systemHealth: string;
+  complianceNote: string;
+}
+
+export interface DoctorClinicalBrief {
+  tokenNumber: string;
+  patientName: string;
+  patientMobile: string;
+  abhaId?: string;
+  department: string;
+  chiefComplaint: string;
+  urgencyLevel: string;
+  aiTriageEngine: string;
+  clinicalRationale: string;
+  confidenceScore: number;
+  suggestedDoctorQuestions: string[];
+  draftFhirNote: string;
+}
+

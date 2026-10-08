@@ -6,9 +6,13 @@ import com.project.ivr.exception.DuplicateBookingException;
 import com.project.ivr.exception.InvalidOtpException;
 import com.project.ivr.exception.OtpExhaustedException;
 import com.project.ivr.exception.TokenUnavailableException;
+import com.project.ivr.exception.OpdClosedException;
 import com.project.ivr.integration.abha.ABHAIntegrationService;
 import com.project.ivr.integration.hospital.HospitalIntegrationService;
 import com.project.ivr.repository.*;
+import com.project.ivr.service.ai.AITriageService;
+import com.project.ivr.dto.ai.SymptomTriageRequest;
+import com.project.ivr.dto.ai.SymptomTriageResponse;
 import com.twilio.twiml.VoiceResponse;
 import com.twilio.twiml.voice.Dial;
 import com.twilio.twiml.voice.Gather;
@@ -40,6 +44,7 @@ public class IVRService {
     private final HospitalRepository hospitalRepository;
     private final DepartmentRepository departmentRepository;
     private final TokenRepository tokenRepository;
+    private final AITriageService aiTriageService;
 
     @Value("${app.ivr.base-url:http://localhost:8080}")
     private String ivrBaseUrl;
@@ -159,6 +164,7 @@ public class IVRService {
                     yield new VoiceResponse.Builder().gather(gather).build().toXml();
                 }
                 case "4" -> buildOfficerTransfer(lang, sayLang);
+                case "5" -> buildAiSymptomTriageMenu(callSid, lang, sayLang);
                 default -> {
                     String invalid = promptService.getPrompt("ivr.error.invalid.input", lang);
                     String menu = promptService.getPrompt("ivr.main.menu", lang);
@@ -369,13 +375,112 @@ public class IVRService {
         return buildOfficerTransfer(lang, sayLang);
     }
 
+    public String buildAiSymptomTriageMenu(String callSid, String lang, Say.Language sayLang) {
+        sessionService.updateStep(callSid, IvrState.AI_SYMPTOM_TRIAGE);
+        String aiPrompt = promptService.getPrompt("ivr.ai.prompt", lang);
+
+        Gather gather = new Gather.Builder()
+                .action(ivrBaseUrl + "/api/ivr/symptom")
+                .inputs(Arrays.asList(Gather.Input.DTMF, Gather.Input.SPEECH))
+                .numDigits(1)
+                .timeout(10)
+                .say(new Say.Builder(aiPrompt).language(sayLang).build())
+                .build();
+
+        return new VoiceResponse.Builder()
+                .gather(gather)
+                .say(new Say.Builder(promptService.getPrompt("ivr.error.timeout", lang)).language(sayLang).build())
+                .hangup(new Hangup.Builder().build())
+                .build()
+                .toXml();
+    }
+
+    public String handleSymptom(String callSid, String digits, String speechResult, String from) {
+        String cleanPhone = cleanMobile(from);
+        IvrSession session = sessionService.getOrCreateSession(callSid, cleanPhone);
+        String lang = session.getLanguage();
+        Say.Language sayLang = getSayLanguage(lang);
+
+        String symptomText = speechResult;
+        if (symptomText == null || symptomText.isBlank()) {
+            symptomText = switch (digits != null ? digits.trim() : "") {
+                case "1" -> "chest discomfort, pain radiating to left arm";
+                case "2" -> "knee joint swelling and severe walking pain";
+                case "3" -> "high fever, continuous cough, body chills";
+                case "4" -> "infant high fever and persistent vomiting";
+                case "5" -> "severe itchy skin rash and hives";
+                case "6" -> "ear pain with discharge and sore throat";
+                default -> "general illness and fever";
+            };
+        }
+
+        SymptomTriageResponse triage = aiTriageService.triageSymptom(SymptomTriageRequest.builder()
+                .symptoms(symptomText)
+                .language(lang)
+                .callSid(callSid)
+                .patientMobile(cleanPhone)
+                .hospitalId(session.getHospitalId() != null ? session.getHospitalId() : 1L)
+                .build());
+
+        if (Boolean.TRUE.equals(triage.getIsEmergencyRedFlag())) {
+            String emergMsg = promptService.getPrompt("ivr.ai.emergency", lang);
+            Dial dial = new Dial.Builder("+91108").build();
+            return new VoiceResponse.Builder()
+                    .say(new Say.Builder(emergMsg).language(sayLang).build())
+                    .dial(dial)
+                    .build()
+                    .toXml();
+        }
+
+        Long recDeptId = triage.getRecommendedDepartmentId() != null ? triage.getRecommendedDepartmentId() : 1L;
+        sessionService.updateDepartment(callSid, recDeptId);
+        sessionService.updateStep(callSid, IvrState.TOKEN_CONFIRMATION);
+
+        String recommendPrompt = promptService.getPrompt("ivr.ai.recommendation", lang, triage.getRecommendedDepartmentName());
+        Gather gather = new Gather.Builder()
+                .action(ivrBaseUrl + "/api/ivr/confirm-ai-token")
+                .numDigits(1)
+                .timeout(10)
+                .say(new Say.Builder(recommendPrompt).language(sayLang).build())
+                .build();
+
+        return new VoiceResponse.Builder()
+                .gather(gather)
+                .say(new Say.Builder(promptService.getPrompt("ivr.error.timeout", lang)).language(sayLang).build())
+                .hangup(new Hangup.Builder().build())
+                .build()
+                .toXml();
+    }
+
+    public String handleConfirmAiToken(String callSid, String digits, String from) {
+        String cleanPhone = cleanMobile(from);
+        IvrSession session = sessionService.getOrCreateSession(callSid, cleanPhone);
+        String lang = session.getLanguage();
+        Say.Language sayLang = getSayLanguage(lang);
+
+        if ("2".equals(digits)) {
+            return buildHospitalMenu(callSid, lang, sayLang);
+        }
+
+        Long hospId = session.getHospitalId() != null ? session.getHospitalId() : 1L;
+        Long deptId = session.getDepartmentId() != null ? session.getDepartmentId() : 1L;
+
+        return handleTokenGeneration(callSid, hospId, deptId, cleanPhone, lang, sayLang, "AI Triage OPD Consultation", "PRIORITY");
+    }
+
     private String handleTokenGeneration(String callSid, Long hospitalId, Long departmentId, String mobile, String lang, Say.Language sayLang) {
+        return handleTokenGeneration(callSid, hospitalId, departmentId, mobile, lang, sayLang, "Routine OPD Consultation", "ROUTINE");
+    }
+
+    private String handleTokenGeneration(String callSid, Long hospitalId, Long departmentId, String mobile, String lang, Say.Language sayLang, String chiefComplaint, String triageSeverity) {
         try {
             TokenBookingRequest bookingReq = TokenBookingRequest.builder()
                     .patientMobile(mobile)
                     .hospitalId(hospitalId)
                     .departmentId(departmentId)
                     .bookingDate(LocalDate.now())
+                    .chiefComplaint(chiefComplaint)
+                    .triageSeverity(triageSeverity)
                     .channel(RequestChannel.IVR)
                     .build();
 
@@ -418,6 +523,17 @@ public class IVRService {
                     .build();
 
             return new VoiceResponse.Builder().gather(gather).build().toXml();
+
+        } catch (OpdClosedException closed) {
+            log.warn("OPD closed during IVR booking: {}", closed.getMessage());
+            String closedMsg = promptService.getPrompt("ivr.token.opd.closed", lang);
+            sessionService.markCallFailed(callSid, "OPD_CLOSED");
+
+            return new VoiceResponse.Builder()
+                    .say(new Say.Builder(closedMsg).language(sayLang).build())
+                    .hangup(new Hangup.Builder().build())
+                    .build()
+                    .toXml();
 
         } catch (Exception e) {
             log.error("Token generation error in IVR: ", e);

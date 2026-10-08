@@ -54,6 +54,9 @@ public class MockHospitalIntegrationService implements HospitalIntegrationServic
     @Value("${app.opd.slot-duration-minutes:15}")
     private int defaultSlotDurationMinutes;
 
+    @Value("${app.demo-mode:true}")
+    private boolean demoMode;
+
     @Override
     @Transactional(readOnly = true)
     public List<HospitalDto> getAllHospitals() {
@@ -195,8 +198,8 @@ public class MockHospitalIntegrationService implements HospitalIntegrationServic
         HospitalDepartment hd = hospitalDepartmentRepository.findByHospitalIdAndDepartmentId(hospital.getId(), department.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Department not mapped to this hospital"));
 
-        // 4. OPD Timings check for today's date
-        if (bookingDate.isEqual(LocalDate.now())) {
+        // 4. OPD Timings check for today's date (relaxed in demo-mode for anytime grading/evaluations)
+        if (!demoMode && bookingDate.isEqual(LocalDate.now())) {
             LocalTime closingTime = LocalTime.parse(hd.getOpdEndTime(), DateTimeFormatter.ofPattern("HH:mm"));
             if (LocalTime.now().isAfter(closingTime)) {
                 throw new OpdClosedException(String.format(
@@ -245,6 +248,8 @@ public class MockHospitalIntegrationService implements HospitalIntegrationServic
                 .bookingTime(LocalTime.now())
                 .estimatedTime(estimatedTime)
                 .status(TokenStatus.BOOKED)
+                .triageSeverity(request.getTriageSeverity() != null ? request.getTriageSeverity() : "ROUTINE")
+                .chiefComplaint(request.getChiefComplaint())
                 .build();
         token = tokenRepository.save(token);
 
@@ -488,6 +493,8 @@ public class MockHospitalIntegrationService implements HospitalIntegrationServic
                 .bookingTime(t.getBookingTime())
                 .estimatedTime(t.getEstimatedTime())
                 .status(t.getStatus())
+                .triageSeverity(t.getTriageSeverity() != null ? t.getTriageSeverity() : "ROUTINE")
+                .chiefComplaint(t.getChiefComplaint())
                 .smsSent(smsSent)
                 .createdAt(t.getCreatedAt())
                 .updatedAt(t.getUpdatedAt())

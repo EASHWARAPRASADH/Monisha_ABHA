@@ -32,7 +32,7 @@ public class IVRController {
     public ResponseEntity<String> incoming(
             @RequestParam(value = "CallSid", required = false) String callSid,
             @RequestParam(value = "From", required = false) String from,
-            @RequestBody(required = false) Map<String, String> body) {
+            @RequestParam(required = false) Map<String, String> body) {
 
         String safeCallSid = resolveParam(callSid, body, "CallSid", "SIM_" + UUID.randomUUID().toString().substring(0, 8));
         String safeFrom = resolveParam(from, body, "From", "9876543210");
@@ -48,7 +48,7 @@ public class IVRController {
             @RequestParam(value = "CallSid", required = false) String callSid,
             @RequestParam(value = "Digits", required = false) String digits,
             @RequestParam(value = "From", required = false) String from,
-            @RequestBody(required = false) Map<String, String> body) {
+            @RequestParam(required = false) Map<String, String> body) {
 
         String safeCallSid = resolveParam(callSid, body, "CallSid", "");
         String safeDigits = resolveParam(digits, body, "Digits", "1");
@@ -65,7 +65,7 @@ public class IVRController {
             @RequestParam(value = "CallSid", required = false) String callSid,
             @RequestParam(value = "Digits", required = false) String digits,
             @RequestParam(value = "From", required = false) String from,
-            @RequestBody(required = false) Map<String, String> body) {
+            @RequestParam(required = false) Map<String, String> body) {
 
         String safeCallSid = resolveParam(callSid, body, "CallSid", "");
         String safeDigits = resolveParam(digits, body, "Digits", "");
@@ -82,7 +82,7 @@ public class IVRController {
             @RequestParam(value = "CallSid", required = false) String callSid,
             @RequestParam(value = "Digits", required = false) String digits,
             @RequestParam(value = "From", required = false) String from,
-            @RequestBody(required = false) Map<String, String> body) {
+            @RequestParam(required = false) Map<String, String> body) {
 
         String safeCallSid = resolveParam(callSid, body, "CallSid", "");
         String safeDigits = resolveParam(digits, body, "Digits", "1");
@@ -99,7 +99,7 @@ public class IVRController {
             @RequestParam(value = "CallSid", required = false) String callSid,
             @RequestParam(value = "Digits", required = false) String digits,
             @RequestParam(value = "From", required = false) String from,
-            @RequestBody(required = false) Map<String, String> body) {
+            @RequestParam(required = false) Map<String, String> body) {
 
         String safeCallSid = resolveParam(callSid, body, "CallSid", "");
         String safeDigits = resolveParam(digits, body, "Digits", "1");
@@ -116,7 +116,7 @@ public class IVRController {
             @RequestParam(value = "CallSid", required = false) String callSid,
             @RequestParam(value = "Digits", required = false) String digits,
             @RequestParam(value = "From", required = false) String from,
-            @RequestBody(required = false) Map<String, String> body) {
+            @RequestParam(required = false) Map<String, String> body) {
 
         String safeCallSid = resolveParam(callSid, body, "CallSid", "");
         String safeDigits = resolveParam(digits, body, "Digits", "1");
@@ -132,7 +132,7 @@ public class IVRController {
             @RequestParam(value = "CallSid", required = false) String callSid,
             @RequestParam(value = "Digits", required = false) String digits,
             @RequestParam(value = "From", required = false) String from,
-            @RequestBody(required = false) Map<String, String> body) {
+            @RequestParam(required = false) Map<String, String> body) {
 
         String safeCallSid = resolveParam(callSid, body, "CallSid", "");
         String safeDigits = resolveParam(digits, body, "Digits", "");
@@ -148,7 +148,7 @@ public class IVRController {
             @RequestParam(value = "CallSid", required = false) String callSid,
             @RequestParam(value = "Digits", required = false) String digits,
             @RequestParam(value = "From", required = false) String from,
-            @RequestBody(required = false) Map<String, String> body) {
+            @RequestParam(required = false) Map<String, String> body) {
 
         String safeCallSid = resolveParam(callSid, body, "CallSid", "");
         String safeDigits = resolveParam(digits, body, "Digits", "");
@@ -163,12 +163,48 @@ public class IVRController {
     public ResponseEntity<String> officerTransfer(
             @RequestParam(value = "CallSid", required = false) String callSid,
             @RequestParam(value = "From", required = false) String from,
-            @RequestBody(required = false) Map<String, String> body) {
+            @RequestParam(required = false) Map<String, String> body) {
 
         String safeCallSid = resolveParam(callSid, body, "CallSid", "");
         String safeFrom = resolveParam(from, body, "From", "9876543210");
 
         String twiml = ivrService.handleOfficer(safeCallSid, safeFrom);
+        return ResponseEntity.ok().contentType(MediaType.APPLICATION_XML).body(twiml);
+    }
+
+    @PostMapping(value = "/symptom", produces = {MediaType.APPLICATION_XML_VALUE, MediaType.TEXT_XML_VALUE})
+    @Operation(summary = "Twilio Webhook: Handle AI Clinical Symptom Input")
+    public ResponseEntity<String> handleSymptom(
+            @RequestParam(value = "CallSid", required = false) String callSid,
+            @RequestParam(value = "Digits", required = false) String digits,
+            @RequestParam(value = "SpeechResult", required = false) String speechResult,
+            @RequestParam(value = "From", required = false) String from,
+            @RequestParam(required = false) Map<String, String> body) {
+
+        String safeCallSid = resolveParam(callSid, body, "CallSid", "");
+        String safeDigits = resolveParam(digits, body, "Digits", "");
+        String safeSpeech = resolveParam(speechResult, body, "SpeechResult", "");
+        String safeFrom = resolveParam(from, body, "From", "9876543210");
+
+        log.info("[IVR AI SYMPTOM] CallSid: {}, Digits: {}, Speech: {}", safeCallSid, safeDigits, safeSpeech);
+        String twiml = ivrService.handleSymptom(safeCallSid, safeDigits, safeSpeech, safeFrom);
+        return ResponseEntity.ok().contentType(MediaType.APPLICATION_XML).body(twiml);
+    }
+
+    @PostMapping(value = "/confirm-ai-token", produces = {MediaType.APPLICATION_XML_VALUE, MediaType.TEXT_XML_VALUE})
+    @Operation(summary = "Twilio Webhook: Confirm or modify AI-recommended token")
+    public ResponseEntity<String> confirmAiToken(
+            @RequestParam(value = "CallSid", required = false) String callSid,
+            @RequestParam(value = "Digits", required = false) String digits,
+            @RequestParam(value = "From", required = false) String from,
+            @RequestParam(required = false) Map<String, String> body) {
+
+        String safeCallSid = resolveParam(callSid, body, "CallSid", "");
+        String safeDigits = resolveParam(digits, body, "Digits", "1");
+        String safeFrom = resolveParam(from, body, "From", "9876543210");
+
+        log.info("[IVR AI CONFIRM TOKEN] CallSid: {}, Digits: {}", safeCallSid, safeDigits);
+        String twiml = ivrService.handleConfirmAiToken(safeCallSid, safeDigits, safeFrom);
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_XML).body(twiml);
     }
 

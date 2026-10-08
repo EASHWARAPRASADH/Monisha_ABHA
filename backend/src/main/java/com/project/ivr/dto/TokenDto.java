@@ -30,6 +30,8 @@ public class TokenDto {
     private LocalTime bookingTime;
     private LocalTime estimatedTime;
     private TokenStatus status;
+    private String triageSeverity;
+    private String chiefComplaint;
     private Boolean smsSent;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

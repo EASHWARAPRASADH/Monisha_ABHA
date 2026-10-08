@@ -14,10 +14,15 @@ import {
   Tv,
   Printer,
   ChevronRight,
-  ShieldCheck
+  ShieldCheck,
+  Stethoscope,
+  Bot,
+  Sparkles,
+  Copy,
+  Check,
 } from 'lucide-react';
-import { tokenApi, hospitalApi, departmentApi } from '../services/api';
-import { Department, Hospital, Token, TokenStatus } from '../types';
+import { tokenApi, hospitalApi, departmentApi, aiApi } from '../services/api';
+import { Department, Hospital, Token, TokenStatus, DoctorClinicalBrief } from '../types';
 import { StatusBadge } from '../components/StatusBadge';
 import { OpdWaitingHallTvModal } from '../components/OpdWaitingHallTvModal';
 import { OpdCaseSheetSlip } from '../components/OpdCaseSheetSlip';
@@ -39,6 +44,12 @@ export const TokensPage: React.FC = () => {
   const [selectedSlipToken, setSelectedSlipToken] = useState<Token | null>(null);
   const [callingToken, setCallingToken] = useState<string | null>(null);
 
+  // AI Doctor Clinical Brief State
+  const [selectedBriefToken, setSelectedBriefToken] = useState<Token | null>(null);
+  const [clinicalBrief, setClinicalBrief] = useState<DoctorClinicalBrief | null>(null);
+  const [briefLoading, setBriefLoading] = useState(false);
+  const [copiedBrief, setCopiedBrief] = useState(false);
+
   // New Booking Form State
   const [newMobile, setNewMobile] = useState('');
   const [newName, setNewName] = useState('');
@@ -51,6 +62,12 @@ export const TokensPage: React.FC = () => {
     loadDropdowns();
     loadTokens();
   }, []);
+
+  useEffect(() => {
+    if (tokens.length > 0 && typeof window !== 'undefined' && window.location.search.includes('openBrief=true')) {
+      handleOpenClinicalBrief(tokens[0]);
+    }
+  }, [tokens]);
 
   const loadDropdowns = async () => {
     try {
@@ -147,6 +164,26 @@ export const TokensPage: React.FC = () => {
     } finally {
       setBookingLoading(false);
     }
+  };
+
+  const handleOpenClinicalBrief = async (token: Token) => {
+    setSelectedBriefToken(token);
+    setClinicalBrief(null);
+    setBriefLoading(true);
+    try {
+      const data = await aiApi.getClinicalBrief(token.id);
+      setClinicalBrief(data);
+    } catch (e) {
+      console.error('Failed to load clinical brief:', e);
+    } finally {
+      setBriefLoading(false);
+    }
+  };
+
+  const handleCopyFhirNote = (note: string) => {
+    navigator.clipboard.writeText(note);
+    setCopiedBrief(true);
+    setTimeout(() => setCopiedBrief(false), 2000);
   };
 
   // Filter tokens based on search query
@@ -432,15 +469,30 @@ export const TokensPage: React.FC = () => {
                       </div>
                     </td>
 
-                    {/* Booking Channel */}
+                    {/* Booking Channel & AI Triage Priority */}
                     <td className="py-3 px-4">
-                      <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
-                        t.channel === 'IVR'
-                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                          : 'bg-slate-100 text-slate-700 border border-slate-200'
-                      }`}>
-                        {t.channel === 'IVR' ? 'Automated IVR' : 'Counter Desk'}
-                      </span>
+                      <div className="flex flex-col space-y-1">
+                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold w-fit ${
+                          t.channel === 'IVR'
+                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                            : 'bg-slate-100 text-slate-700 border border-slate-200'
+                        }`}>
+                          {t.channel === 'IVR' ? 'Automated IVR' : 'Counter Desk'}
+                        </span>
+                        {t.triageSeverity === 'EMERGENCY' ? (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black bg-rose-100 text-rose-800 border border-rose-300 animate-pulse w-fit">
+                            🚨 EMERGENCY
+                          </span>
+                        ) : t.triageSeverity === 'PRIORITY' ? (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-800 border border-amber-300 w-fit">
+                            ⚡ PRIORITY
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-50 text-slate-600 border border-slate-200 w-fit">
+                            ROUTINE
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Status Badge */}
@@ -450,6 +502,15 @@ export const TokensPage: React.FC = () => {
 
                     {/* Actions */}
                     <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                      {/* AI Doctor Clinical Briefing Button */}
+                      <button
+                        onClick={() => handleOpenClinicalBrief(t)}
+                        title="AI Pre-Consultation Doctor Brief & Screening Checklist"
+                        className="p-1.5 rounded-lg border border-teal-300 bg-teal-50 hover:bg-teal-100 text-teal-800 shadow-2xs transition"
+                      >
+                        <Stethoscope className="w-3.5 h-3.5 text-teal-700" />
+                      </button>
+
                       {/* Print Official Thermal Case Slip */}
                       <button
                         onClick={() => setSelectedSlipToken(t)}
@@ -621,6 +682,128 @@ export const TokensPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* AI Doctor Pre-Consultation Clinical Briefing Modal */}
+      {selectedBriefToken && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full border border-teal-200 shadow-2xl overflow-hidden animate-fadeIn">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-teal-800 to-slate-900 text-white p-5 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-teal-500/20 border border-teal-400/30 flex items-center justify-center">
+                  <Stethoscope className="w-5 h-5 text-teal-300" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold flex items-center space-x-2">
+                    <span>AI Pre-Consultation Doctor Briefing</span>
+                    <span className="text-[10px] bg-teal-400/20 text-teal-200 border border-teal-400/30 px-2 py-0.5 rounded font-mono">
+                      Token: {selectedBriefToken.tokenNumber}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-teal-200/80">
+                    Patient: {selectedBriefToken.patientName || 'Citizen'} • {selectedBriefToken.departmentName}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedBriefToken(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              {briefLoading ? (
+                <div className="py-12 text-center text-slate-500 text-xs">
+                  <Bot className="w-8 h-8 mx-auto text-teal-600 animate-bounce mb-2" />
+                  Generating Local AI Clinical Briefing...
+                </div>
+              ) : clinicalBrief ? (
+                <>
+                  {/* Triage & Severity Summary */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Triage Urgency</p>
+                      <p className="text-sm font-black mt-0.5 text-slate-900">{clinicalBrief.urgencyLevel}</p>
+                    </div>
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Confidence</p>
+                      <p className="text-sm font-black mt-0.5 text-teal-700">{(clinicalBrief.confidenceScore * 100).toFixed(0)}% Match</p>
+                    </div>
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Local Engine</p>
+                      <p className="text-[11px] font-mono font-bold mt-0.5 text-slate-700 truncate">{clinicalBrief.aiTriageEngine}</p>
+                    </div>
+                  </div>
+
+                  {/* Chief Complaint recorded via IVR */}
+                  <div className="p-3.5 rounded-xl bg-teal-50/50 border border-teal-200">
+                    <p className="text-xs font-bold text-teal-900 mb-1 flex items-center">
+                      <Bot className="w-3.5 h-3.5 mr-1.5 text-teal-600" />
+                      Recorded Chief Complaint (IVR Audio / Citizen Input):
+                    </p>
+                    <p className="text-xs text-slate-800 font-medium italic">
+                      "{clinicalBrief.chiefComplaint}"
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-2">
+                      <span className="font-semibold text-slate-700">Clinical Rationale: </span>
+                      {clinicalBrief.clinicalRationale}
+                    </p>
+                  </div>
+
+                  {/* Doctor Screening Checklist Questions */}
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2 flex items-center">
+                      <Sparkles className="w-3.5 h-3.5 text-teal-600 mr-1.5" />
+                      Recommended Resident Doctor Screening Questions:
+                    </h4>
+                    <div className="space-y-1.5">
+                      {clinicalBrief.suggestedDoctorQuestions?.map((q, idx) => (
+                        <div key={idx} className="flex items-start space-x-2 text-xs text-slate-700 bg-slate-50 p-2.5 rounded-lg border border-slate-200/80">
+                          <span className="font-bold text-teal-700 shrink-0">{idx + 1}.</span>
+                          <span>{q}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Draft ABDM FHIR Clinical Document Note */}
+                  <div className="border border-slate-200 rounded-xl overflow-hidden">
+                    <div className="bg-slate-100 px-3.5 py-2 flex items-center justify-between text-xs font-bold text-slate-700">
+                      <span>Draft ABDM FHIR Clinical Consultation Note</span>
+                      <button
+                        onClick={() => handleCopyFhirNote(clinicalBrief.draftFhirNote)}
+                        className="inline-flex items-center text-[11px] text-teal-700 hover:text-teal-900"
+                      >
+                        {copiedBrief ? <Check className="w-3.5 h-3.5 mr-1 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 mr-1" />}
+                        {copiedBrief ? 'Copied!' : 'Copy to EMR'}
+                      </button>
+                    </div>
+                    <pre className="p-3 text-[11px] font-mono text-slate-800 bg-slate-50 whitespace-pre-wrap leading-relaxed max-h-36 overflow-y-auto">
+                      {clinicalBrief.draftFhirNote}
+                    </pre>
+                  </div>
+                </>
+              ) : (
+                <div className="py-8 text-center text-slate-400 text-xs">
+                  Could not retrieve clinical brief.
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-slate-50 px-6 py-3.5 border-t border-slate-200 flex justify-end">
+              <button
+                onClick={() => setSelectedBriefToken(null)}
+                className="px-4 py-2 text-xs font-bold rounded-xl bg-slate-900 text-white hover:bg-slate-800 transition"
+              >
+                Close Briefing
+              </button>
+            </div>
           </div>
         </div>
       )}
