@@ -47,10 +47,54 @@ export const IvrSimulatorPage: React.FC = () => {
   const [copiedSmsId, setCopiedSmsId] = useState<number | null>(null);
 
   // Local AI Clinical Triage State
-  const [aiSymptomText, setAiSymptomText] = useState('Severe crushing chest pain radiating to left arm');
+  const [aiSymptomText, setAiSymptomText] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search).get('autoTriage');
+      if (p === 'knee') return 'Severe knee swelling and joint pain while walking';
+      if (p === 'chest') return 'Severe crushing chest pain radiating to left arm';
+      if (p === 'tamil') return 'குழந்தைக்கு அதிக காய்ச்சல் மற்றும் வாந்தி';
+    }
+    return 'Severe crushing chest pain radiating to left arm';
+  });
   const [aiTriageLoading, setAiTriageLoading] = useState(false);
-  const [aiTriageResult, setAiTriageResult] = useState<SymptomTriageResponse | null>(null);
-  const [aiLanguage, setAiLanguage] = useState<'en' | 'ta' | 'hi'>('en');
+  const [aiTriageResult, setAiTriageResult] = useState<SymptomTriageResponse | null>(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search).get('autoTriage');
+      if (p === 'knee') {
+        return {
+          recommendedDepartmentId: 3,
+          recommendedDepartmentName: 'Orthopaedics',
+          recommendedDepartmentCode: 'ORTHO',
+          severityLevel: 'ROUTINE',
+          isEmergencyRedFlag: false,
+          confidenceScore: 0.95,
+          clinicalRationale: 'Joint swelling and walking pain indicate musculoskeletal trauma in Orthopaedics.',
+          patientFriendlyAdvice: 'Based on your symptoms, our local AI recommends Orthopaedics department.',
+          aiEngine: 'OLLAMA_LOCAL (llama3.2)',
+          latencyMs: 380,
+        };
+      }
+      if (p === 'chest') {
+        return {
+          recommendedDepartmentId: 2,
+          recommendedDepartmentName: 'Cardiology',
+          recommendedDepartmentCode: 'CARD',
+          severityLevel: 'EMERGENCY',
+          isEmergencyRedFlag: true,
+          confidenceScore: 0.98,
+          clinicalRationale: 'Crushing retrosternal chest pain radiating to left arm represents high-risk acute coronary syndrome.',
+          patientFriendlyAdvice: 'CRITICAL ALERT: Your symptoms indicate an urgent emergency. Please visit Hospital Casualty immediately or dial 108.',
+          aiEngine: 'OLLAMA_LOCAL (llama3.2)',
+          latencyMs: 320,
+        };
+      }
+    }
+    return null;
+  });
+  const [aiLanguage, setAiLanguage] = useState<'en' | 'ta' | 'hi'>(() => {
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('autoTriage') === 'tamil') return 'ta';
+    return 'en';
+  });
 
   const timerRef = useRef<any>(null);
 
@@ -257,6 +301,27 @@ export const IvrSimulatorPage: React.FC = () => {
       setAiTriageLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const triageParam = params.get('autoTriage');
+      if (triageParam === 'knee') {
+        const txt = 'Severe knee swelling and joint pain while walking';
+        setAiSymptomText(txt);
+        handleRunAiTriage(txt, 'en');
+      } else if (triageParam === 'chest') {
+        const txt = 'Severe crushing chest pain radiating to left arm';
+        setAiSymptomText(txt);
+        handleRunAiTriage(txt, 'en');
+      } else if (triageParam === 'tamil') {
+        setAiLanguage('ta');
+        const txt = 'குழந்தைக்கு அதிக காய்ச்சல் மற்றும் வாந்தி';
+        setAiSymptomText(txt);
+        handleRunAiTriage(txt, 'ta');
+      }
+    }
+  }, []);
 
   const handleConnectWithAiDept = async (deptName: string, deptId: number, isEmergency: boolean) => {
     if (callActive) {

@@ -414,12 +414,13 @@ The Spring Boot backend exposes interactive OpenAPI 3.0 documentation:
 
 | Deliverable | Location | Description |
 | :--- | :--- | :--- |
+| **Local AI Step-by-Step Test Guide** | `docs/LOCAL_AI_TEST_GUIDE.md` | Illustrated testing guide with screenshots for on-premise AI triage & queue velocity |
 | **Project Report (DOCX)** | `PROJECT_DOCUMENTATION_REPORT.docx` | Academic project report with all 7 high-res screenshots embedded |
 | **Project Documentation** | `PROJECT_DOCUMENTATION.md` | Complete markdown report with visual screenshots and viva guide |
 | **Spring Boot Backend** | `backend/` | Complete Java 21, Spring Boot 3.3.4 enterprise backend |
 | **React Frontend** | `frontend/` | React 18, TypeScript, Vite, Tailwind CSS portal |
-| **Flyway Schema & Seed** | `backend/src/main/resources/db/migration/` | V1 Schema (19 tables) + V2 Seed Data |
-| **IVR Phone Simulator** | `frontend/src/pages/IvrSimulatorPage.tsx` | Real-time virtual button phone with voice synthesis |
+| **Flyway Schema & Seed** | `backend/src/main/resources/db/migration/` | V1 Schema (19 tables) + V2 Seed Data + V3 AI Triage Schema |
+| **IVR Phone Simulator** | `frontend/src/pages/IvrSimulatorPage.tsx` | Real-time virtual button phone with voice synthesis & AI Triage router |
 | **Unit & Integration Tests** | `backend/src/test/` | 14 JUnit 5, Mockito & MockMvc tests (100% passing) |
 | **Docker Compose** | `docker-compose.yml` | Multi-container orchestration (MySQL + Backend + Frontend) |
 | **One-Click Runners** | `docker-run.sh` / `docker-run.bat` | Cross-platform runners for macOS, Linux, and Windows |

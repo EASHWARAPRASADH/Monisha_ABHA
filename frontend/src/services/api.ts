@@ -81,6 +81,7 @@ export const authApi = {
       if (window.location.search.includes('evalAuth=admin')) {
         const demoAdmin: LoginResponse = {
           token: ADMIN_EVAL_TOKEN,
+          type: 'Bearer',
           id: 1,
           username: 'superadmin',
           fullName: 'Dr. Rajesh Sharma (Director)',
@@ -94,6 +95,7 @@ export const authApi = {
       if (window.location.search.includes('evalAuth=staff')) {
         const demoUser: LoginResponse = {
           token: STAFF_EVAL_TOKEN,
+          type: 'Bearer',
           id: 3,
           username: 'staff_ggh',
           fullName: 'Kavitha R (OPD In-Charge)',
